@@ -1,0 +1,7 @@
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "script-src 'self' 'unsafe-eval' 'unsafe-inline'; default-src *; img-src * data: blob:; style-src * 'unsafe-inline';"
