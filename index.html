@@ -861,6 +861,7 @@ section { position: relative; }
       <a href="#founder">Our Story</a>
     </div>
     <a href="https://healthlink360.ai/waitlist" target="_blank" rel="noopener" class="btn btn-pink btn-sm">Join the free waitlist</a>
+    <button id="logout-btn" class="btn btn-sm" style="display:none;background:transparent;border:1px solid rgba(255,255,255,0.4);color:inherit;cursor:pointer;margin-left:8px;" onclick="window.__kitchenLogout()">Sign out</button>
   </div>
 </nav>
 
@@ -1304,9 +1305,19 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
   function openKitchen() {
     gate.classList.add('hidden');
     body.classList.remove('gate-locked');
+    var logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) logoutBtn.style.display = 'inline-flex';
     // allow the page to settle, then run a first reveal pass
     setTimeout(revealPass, 80);
   }
+
+  window.__kitchenLogout = function() {
+    try { localStorage.removeItem(STORE_KEY); } catch(e) {}
+    gate.classList.remove('hidden');
+    body.classList.add('gate-locked');
+    var logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) logoutBtn.style.display = 'none';
+  };
 
   // Returning member? Skip the gate.
   var existing = getMember();
@@ -1349,6 +1360,13 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         joined: new Date().toISOString()
       };
       try { localStorage.setItem(STORE_KEY, JSON.stringify(record)); } catch (e) {}
+
+      // Send to Mailchimp via Netlify function
+      fetch('/.netlify/functions/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, first: first, last: last })
+      }).catch(function() {});
 
       openKitchen();
     });
