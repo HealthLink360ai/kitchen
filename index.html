@@ -1283,6 +1283,7 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
   'use strict';
 
   var STORE_KEY = 'hl360_kitchen_member';
+  var VISITOR_KEY = 'hl360_visitor_id';
 
   /* ---------- Lucide icons ---------- */
   function drawIcons() {
@@ -1302,6 +1303,33 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
     catch (e) { return null; }
   }
 
+  function makeId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    return 'v_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2);
+  }
+
+  function getVisitorId() {
+    var incoming = '';
+    try {
+      if (window.URLSearchParams) {
+        incoming = new URLSearchParams(window.location.search).get('hl360_vid') || '';
+      }
+    } catch (e) {}
+    if (incoming && incoming.length < 128) {
+      try { localStorage.setItem(VISITOR_KEY, incoming); } catch (e) {}
+      return incoming;
+    }
+    try {
+      var existingId = localStorage.getItem(VISITOR_KEY);
+      if (existingId) return existingId;
+      var nextId = makeId();
+      localStorage.setItem(VISITOR_KEY, nextId);
+      return nextId;
+    } catch (e) {
+      return makeId();
+    }
+  }
+
   function openKitchen() {
     gate.classList.add('hidden');
     body.classList.remove('gate-locked');
@@ -1312,6 +1340,7 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
   }
 
   window.__kitchenLogout = function() {
+    trackKitchenEvent('kitchen_logout');
     try { localStorage.removeItem(STORE_KEY); } catch(e) {}
     gate.classList.remove('hidden');
     body.classList.add('gate-locked');
@@ -1328,6 +1357,81 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
 
   function isEmail(v) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  }
+
+  function getAttribution() {
+    var params = null;
+    try {
+      params = window.URLSearchParams ? new URLSearchParams(window.location.search) : null;
+    } catch (e) {}
+    var keys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'];
+    var data = {
+      landing_page: window.location.href,
+      referrer: document.referrer || '',
+      path: window.location.pathname
+    };
+    keys.forEach(function (key) {
+      var value = params ? params.get(key) : '';
+      if (value) data[key] = value;
+    });
+    return data;
+  }
+
+  function getVisitorContext() {
+    var timezone = '';
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch (e) {}
+    return {
+      language: navigator.language || '',
+      timezone: timezone,
+      screen: window.screen ? window.screen.width + 'x' + window.screen.height : '',
+      viewport: window.innerWidth + 'x' + window.innerHeight,
+      visitor_id: getVisitorId(),
+      site_surface: 'kitchen'
+    };
+  }
+
+  function getMemberEmail() {
+    var member = getMember();
+    return member && member.email ? member.email : '';
+  }
+
+  function trackKitchenEvent(eventName, properties) {
+    try {
+      var email = getMemberEmail();
+      var visitorId = getVisitorId();
+      if (!email && !visitorId) return;
+
+      fetch('/.netlify/functions/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({
+          email: email,
+          visitorId: visitorId,
+          eventName: eventName,
+          properties: Object.assign({
+            attribution: getAttribution(),
+            visitor: getVisitorContext()
+          }, properties || {})
+        })
+      }).catch(function() {});
+    } catch (e) {}
+  }
+
+  trackKitchenEvent('hl360_page_view', {
+    site_surface: 'kitchen',
+    gated: true,
+    known_member: Boolean(existing && existing.email)
+  });
+
+  if (existing && existing.email) {
+    trackKitchenEvent('kitchen_login', {
+      returning_member: true,
+      login_method: 'local_gate'
+    });
+    trackKitchenEvent('kitchen_page_view', { returning_member: true });
   }
 
   if (form) {
@@ -1361,14 +1465,30 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
       };
       try { localStorage.setItem(STORE_KEY, JSON.stringify(record)); } catch (e) {}
 
-      // Send to Mailchimp via Netlify function
-      fetch('/.netlify/functions/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email, first: first, last: last })
-      }).catch(function() {});
-
       openKitchen();
+
+      // Send to Mailchimp via Netlify function
+      try {
+        fetch('/.netlify/functions/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email,
+            first: first,
+            last: last,
+            waitlist: record.waitlist,
+            attribution: getAttribution(),
+            visitor: getVisitorContext()
+          })
+        }).catch(function() {});
+      } catch (e) {}
+
+      trackKitchenEvent('kitchen_login', {
+        returning_member: false,
+        login_method: 'gate_form',
+        waitlist: record.waitlist
+      });
+      trackKitchenEvent('kitchen_page_view', { returning_member: false });
     });
   }
 
@@ -1393,6 +1513,11 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         tab.classList.add('active');
         var panel = card.querySelector('.rc-panel[data-panel="' + key + '"]');
         if (panel) panel.classList.add('active');
+        var recipeHeading = card.querySelector('h3, h4');
+        trackKitchenEvent('kitchen_recipe_tab', {
+          recipe: card.getAttribute('data-recipe') || (recipeHeading ? recipeHeading.textContent : ''),
+          tab: key
+        });
       });
     });
   });
@@ -1434,6 +1559,7 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         var id = o.getAttribute('data-id');
         var rec = { choice: id, when: new Date().toISOString() };
         try { localStorage.setItem(VOTE_KEY, JSON.stringify(rec)); } catch (e) {}
+        trackKitchenEvent('kitchen_vote', { choice: id });
         reveal(id, 'Thank you — your vote is in. We\'ll tally it before the next drop.');
       });
     });
@@ -1445,6 +1571,7 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
         if (v.length < 2) { sinput.focus(); return; }
         var rec = { suggestion: v, when: new Date().toISOString() };
         try { localStorage.setItem(VOTE_KEY, JSON.stringify(rec)); } catch (e) {}
+        trackKitchenEvent('kitchen_suggestion', { suggestion: v });
         sinput.value = '';
         reveal(null, 'Thank you — "' + v + '" is on our list. We\'ll tally it before the next drop.');
       });
@@ -1515,6 +1642,26 @@ lucide.createIcons({icons});\``);if(typeof c>"u")throw new Error("`createIcons()
       var y = target.getBoundingClientRect().top + window.scrollY - 56;
       window.scrollTo({ top: y, behavior: 'smooth' });
     });
+  });
+
+  document.querySelectorAll('a[href^="http"]').forEach(function (a) {
+    a.addEventListener('click', function () {
+      trackKitchenEvent('kitchen_cta_click', {
+        label: (a.textContent || '').trim(),
+        href: a.href
+      });
+    });
+  });
+
+  document.querySelectorAll('a[href*="healthlink360.ai"]').forEach(function (a) {
+    try {
+      var url = new URL(a.href);
+      url.searchParams.set('hl360_vid', getVisitorId());
+      url.searchParams.set('utm_source', 'kitchen');
+      url.searchParams.set('utm_medium', 'owned_site');
+      url.searchParams.set('utm_campaign', 'chat_and_chew');
+      a.href = url.toString();
+    } catch (e) {}
   });
 
   // re-draw icons once more in case lucide loaded late
