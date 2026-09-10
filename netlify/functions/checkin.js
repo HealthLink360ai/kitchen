@@ -24,6 +24,21 @@ async function capturePostHog(email, properties) {
   }) }).catch(() => {});
 }
 
+async function subscribeBrevo({ email, first, last, eventId, eventInfo }) {
+  const apiKey = process.env.BREVO_API_KEY;
+  const listId = Number(process.env.BREVO_KITCHEN_LIST_ID);
+  if (!apiKey || !Number.isInteger(listId)) throw new Error('Brevo is not configured');
+  const response = await fetch('https://api.brevo.com/v3/contacts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'api-key': apiKey, accept: 'application/json' },
+    body: JSON.stringify({ email, updateEnabled: true, listIds: [listId], attributes: {
+      FIRSTNAME: first, LASTNAME: last, SOURCE: 'Chat & Chew QR', AGENCY: eventInfo.agency,
+      EVENT_ID: eventId, EVENT_DATE: eventInfo.date, LAST_RECIPE: 'Marinated Tomatoes and Charred Okra Over Polenta'
+    } })
+  });
+  if (!response.ok) throw new Error('Subscription could not be completed');
+}
+
 exports.handler = async function(event) {
   if (event.httpMethod !== 'POST') return reply(405, { error: 'Method Not Allowed' });
   let payload;
@@ -34,11 +49,15 @@ exports.handler = async function(event) {
   const last = String(payload.last || '').trim().slice(0, 80);
   if (!eventInfo) return reply(400, { error: 'This event code is not valid.' });
   if (!first || !last || !validEmail(email)) return reply(400, { error: 'Name and a valid email are required.' });
+  if (payload.updates !== true) return reply(400, { error: 'A Kitchen subscription is required to unlock the recipes.' });
 
   const key = `${payload.eventId}/${hash(email)}`;
   const store = getStore('chat-chew-checkins');
   const existing = await store.get(key, { type: 'json' });
   if (existing) return reply(200, { success: true, duplicate: true });
+
+  try { await subscribeBrevo({ email, first, last, eventId: payload.eventId, eventInfo }); }
+  catch (_) { return reply(502, { error: 'We could not complete your Kitchen subscription. Please try again.' }); }
 
   const record = { event_id: payload.eventId, event_name: eventInfo.name, agency: eventInfo.agency, event_date: eventInfo.date,
     first, last, email, marketing_opt_in: Boolean(payload.updates), source: 'event_qr', checked_in_at: new Date().toISOString() };
