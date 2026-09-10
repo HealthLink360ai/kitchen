@@ -20,8 +20,54 @@
     if (label) label.textContent = 'Subscribe me to HealthLink360 Kitchen for monthly recipes and food-as-medicine updates. I can unsubscribe at any time.';
     var button = form.querySelector('button[type="submit"]');
     if (button && button.firstChild) button.firstChild.textContent = 'Subscribe & Enter ';
-    form.addEventListener('submit', function (event) {
-      if (!checkbox.checked) { event.preventDefault(); event.stopImmediatePropagation(); checkbox.focus(); }
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      var firstEl = document.getElementById('g-first');
+      var lastEl = document.getElementById('g-last');
+      var emailEl = document.getElementById('g-email');
+      var first = firstEl.value.trim();
+      var last = lastEl.value.trim();
+      var email = emailEl.value.trim();
+      var validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      [firstEl, lastEl, emailEl].forEach(function (el) { el.classList.remove('invalid'); });
+      if (!first) firstEl.classList.add('invalid');
+      if (!last) lastEl.classList.add('invalid');
+      if (!validEmail) emailEl.classList.add('invalid');
+      if (!first || !last || !validEmail || !checkbox.checked) {
+        (!first ? firstEl : (!last ? lastEl : (!validEmail ? emailEl : checkbox))).focus();
+        return;
+      }
+
+      var originalText = button ? button.textContent : '';
+      if (button) { button.disabled = true; button.textContent = 'Subscribing…'; }
+      var error = form.querySelector('.subscription-error');
+      if (!error) {
+        error = document.createElement('p');
+        error.className = 'subscription-error';
+        error.style.cssText = 'margin:10px 0 0;color:#b42318;font-size:13px;font-weight:700';
+        form.appendChild(error);
+      }
+      error.textContent = '';
+
+      try {
+        var response = await fetch('/.netlify/functions/subscribe', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, first: first, last: last, waitlist: true })
+        });
+        var result = await response.json().catch(function () { return {}; });
+        if (!response.ok) throw new Error(result.error || 'We could not complete your subscription. Please try again.');
+        localStorage.setItem(memberKey, JSON.stringify({ first: first, last: last, email: email, waitlist: true, joined: new Date().toISOString() }));
+        var gate = document.getElementById('gate');
+        gate.classList.add('hidden');
+        document.body.classList.remove('gate-locked');
+        var logout = document.getElementById('logout-btn');
+        if (logout) logout.style.display = 'inline-flex';
+        setTimeout(showReveal, 250);
+      } catch (err) {
+        error.textContent = err.message || 'We could not complete your subscription. Please try again.';
+        if (button) { button.disabled = false; button.textContent = originalText; }
+      }
     }, true);
   }
 
