@@ -1,108 +1,26 @@
-const crypto = require('crypto');
-
 function json(statusCode, body) {
-  return {
-    statusCode,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  };
-}
-
-function getSubscriberHash(email) {
-  return crypto.createHash('md5').update(String(email).trim().toLowerCase()).digest('hex');
-}
-
-function getConfig() {
-  return {
-    apiKey: process.env.MAILCHIMP_API_KEY,
-    audienceId: process.env.MAILCHIMP_AUDIENCE_ID,
-    dc: process.env.MAILCHIMP_DC
-  };
-}
-
-async function postMailchimpEvent({ email, name, properties }) {
-  const { apiKey, audienceId, dc } = getConfig();
-  const subscriberHash = getSubscriberHash(email);
-  const url = `https://${dc}.api.mailchimp.com/3.0/lists/${audienceId}/members/${subscriberHash}/events`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `apikey ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name,
-      properties,
-      is_syncing: false
-    })
-  });
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    console.log('Mailchimp event error:', response.status, JSON.stringify(data));
-  }
+  return { statusCode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
 }
 
 exports.handler = async function(event) {
-  if (event.httpMethod !== 'POST') {
-    return json(405, { error: 'Method Not Allowed' });
-  }
-
+  if (event.httpMethod !== 'POST') return json(405, { error: 'Method Not Allowed' });
   let payload;
-  try {
-    payload = JSON.parse(event.body || '{}');
-  } catch (error) {
-    return json(400, { error: 'Invalid JSON body' });
-  }
+  try { payload = JSON.parse(event.body || '{}'); } catch (_) { return json(400, { error: 'Invalid JSON body' }); }
+  const email = String(payload.email || '').trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: 'A valid email is required' });
+  if (payload.waitlist !== true) return json(400, { error: 'A Kitchen subscription is required for recipe access' });
 
-  const { email, first, last, waitlist, attribution, visitor } = payload;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json(400, { error: 'A valid email is required' });
-  }
-
-  const { apiKey, audienceId, dc } = getConfig();
-
-  if (!apiKey || !audienceId || !dc) {
-    return json(500, { error: 'Mailchimp is not configured' });
-  }
-
-  const subscriberHash = getSubscriberHash(email);
-  const url = `https://${dc}.api.mailchimp.com/3.0/lists/${audienceId}/members/${subscriberHash}`;
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      Authorization: `apikey ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      email_address: email,
-      status: 'subscribed',
-      merge_fields: { FNAME: first || '', LNAME: last || '' },
-      tags: ['The Kitchen', waitlist ? 'Kitchen Waitlist' : 'Kitchen Access']
-    })
+  const apiKey = process.env.BREVO_API_KEY;
+  const listId = Number(process.env.BREVO_KITCHEN_LIST_ID);
+  if (!apiKey || !Number.isInteger(listId)) return json(500, { error: 'Brevo is not configured' });
+  const response = await fetch('https://api.brevo.com/v3/contacts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'api-key': apiKey, accept: 'application/json' },
+    body: JSON.stringify({ email, updateEnabled: true, listIds: [listId], attributes: {
+      FIRSTNAME: String(payload.first || '').trim().slice(0, 80),
+      LASTNAME: String(payload.last || '').trim().slice(0, 80),
+      SOURCE: 'HealthLink360 Kitchen', LAST_RECIPE: 'Marinated Tomatoes and Charred Okra Over Polenta'
+    } })
   });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    console.log('Mailchimp subscribe error:', response.status, JSON.stringify(data));
-    return json(400, { error: data.detail || 'Subscription failed' });
-  }
-
-  await postMailchimpEvent({
-    email,
-    name: 'kitchen_signup',
-    properties: {
-      first_name: first || '',
-      last_name: last || '',
-      waitlist: Boolean(waitlist),
-      attribution: attribution || {},
-      visitor: visitor || {},
-      captured_at: new Date().toISOString()
-    }
-  });
-
+  if (!response.ok) return json(400, { error: 'Subscription could not be completed' });
   return json(200, { success: true });
 };
