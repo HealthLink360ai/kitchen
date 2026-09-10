@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#17131c">
+  <title>Chat &amp; Chew Check-In | HealthLink360 Kitchen</title>
+  <style>
+    :root{--ink:#17131c;--muted:#716a77;--paper:#fbf8f2;--card:#fff;--purple:#7c3aed;--magenta:#d81b74;--line:#e6dfe8;--green:#16794f;--green-bg:#e8f8f0}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top right,#f4d8e8 0,transparent 36%),var(--paper);color:var(--ink);font-family:Inter,Arial,sans-serif;display:grid;place-items:center;padding:22px}.shell{width:min(100%,560px)}.brand{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.brand strong{font-size:20px}.brand span{font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}.card{background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:0 20px 60px rgba(47,25,56,.12);overflow:hidden}.event{padding:28px;background:linear-gradient(135deg,var(--ink),#31213d);color:#fff}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#f8a9d1}.event h1{font-size:30px;line-height:1.08;margin:9px 0}.meta{display:grid;gap:6px;color:#e7dfea;font-size:14px}.form{padding:28px}.form h2{font-size:20px;margin:0 0 6px}.form>p{margin:0 0 20px;color:var(--muted);font-size:14px;line-height:1.5}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:grid;gap:6px;margin-bottom:14px}.field label{font-size:12px;font-weight:700}.field input{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px 13px;font:inherit;color:inherit;background:#fff}.field input:focus{outline:3px solid rgba(124,58,237,.16);border-color:var(--purple)}.consent{display:flex;gap:9px;align-items:flex-start;color:var(--muted);font-size:12px;line-height:1.4;margin:4px 0 18px}.consent input{margin-top:2px}.button{width:100%;border:0;border-radius:12px;background:linear-gradient(90deg,var(--purple),var(--magenta));color:#fff;padding:14px 18px;font:800 15px inherit;cursor:pointer}.button:disabled{opacity:.55;cursor:wait}.message{display:none;margin-top:14px;padding:12px;border-radius:10px;font-size:13px}.message.error{display:block;background:#fff0f0;color:#9d1c1c}.success{display:none;padding:30px;text-align:center}.success.show{display:block}.success .check{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;margin:0 auto 15px;background:var(--green-bg);color:var(--green);font-size:30px;font-weight:900}.success h2{margin:0 0 7px}.success p{color:var(--muted);line-height:1.5}.recipe-link{display:inline-block;margin-top:8px;border-radius:12px;background:var(--ink);color:#fff;padding:13px 20px;text-decoration:none;font-weight:800}.fine{text-align:center;color:var(--muted);font-size:11px;margin-top:14px}@media(max-width:520px){.row{grid-template-columns:1fr}.event,.form{padding:22px}.event h1{font-size:26px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="brand"><strong>HealthLink360</strong><span>The Kitchen</span></div>
+    <section class="card">
+      <header class="event">
+        <div class="eyebrow">Chat &amp; Chew Check-In</div>
+        <h1 id="eventName">Loading event…</h1>
+        <div class="meta" id="eventMeta"></div>
+      </header>
+      <form class="form" id="checkinForm">
+        <h2>Check in and get the recipe</h2>
+        <p>Your check-in replaces the paper sign-in sheet and connects this event to your Kitchen profile.</p>
+        <div class="row">
+          <div class="field"><label for="first">First name</label><input id="first" name="first" autocomplete="given-name" required></div>
+          <div class="field"><label for="last">Last name</label><input id="last" name="last" autocomplete="family-name" required></div>
+        </div>
+        <div class="field"><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+        <label class="consent"><input id="updates" type="checkbox"><span>Email me this recipe and occasional HealthLink360 Kitchen updates. I can unsubscribe at any time.</span></label>
+        <button class="button" id="submitButton" type="submit">Check In</button>
+        <div class="message" id="message" role="alert"></div>
+      </form>
+      <div class="success" id="success">
+        <div class="check">✓</div>
+        <h2 id="successTitle">You're checked in.</h2>
+        <p>Your attendance has been recorded. Your Chat &amp; Chew recipes are ready in The Kitchen.</p>
+        <a class="recipe-link" href="/">View This Month's Recipes</a>
+      </div>
+    </section>
+    <p class="fine">Attendance is used for program reporting. Health information is not collected during check-in.</p>
+  </main>
+  <script>
+    const EVENTS={
+      "dhs-2026-09-18":{name:"Chat & Chew: Food",agency:"DHS",date:"September 18, 2026",time:"12:00–2:00 PM",location:"4049 South Capitol St, SW"},
+      "mpd-2026-09-19":{name:"Chat & Chew",agency:"MPD",date:"September 19, 2026",time:"12:00–4:00 PM",location:"Fort McNair"},
+      "osse-2026-09-29":{name:"Chat, Chew & Sip",agency:"OSSE",date:"September 29, 2026",time:"11:30 AM–12:30 PM",location:"1345 New York Ave NE"},
+      "dhs-2026-10-02":{name:"Chat & Chew",agency:"DHS",date:"October 2, 2026",time:"12:00–2:00 PM",location:"645 H St NE"},
+      "osse-2026-11-03":{name:"Cooking Demo · Diabetic Friendly",agency:"OSSE",date:"November 3, 2026",time:"12:00–1:00 PM",location:"1050 First St NE"},
+      "dhs-2026-12-08":{name:"Chat & Chew: Food",agency:"DHS",date:"December 8, 2026",time:"11:00 AM–2:00 PM",location:"64 New York Ave NE / Virginia Williams"}
+    };
+    const params=new URLSearchParams(location.search);const eventId=params.get("event");const event=EVENTS[eventId];
+    const form=document.getElementById("checkinForm"),message=document.getElementById("message"),button=document.getElementById("submitButton");
+    const first=document.getElementById("first"),last=document.getElementById("last"),email=document.getElementById("email"),updates=document.getElementById("updates");
+    if(!event){document.getElementById("eventName").textContent="Event link not recognized";document.getElementById("eventMeta").textContent="Ask your HealthLink360 facilitator for the current event QR code.";form.hidden=true;}
+    else{document.getElementById("eventName").textContent=`${event.agency} · ${event.name}`;document.getElementById("eventMeta").innerHTML=`<span>${event.date} · ${event.time}</span><span>${event.location}</span>`;}
+    try{const member=JSON.parse(localStorage.getItem("hl360_kitchen_member"));if(member){first.value=member.first||"";last.value=member.last||"";email.value=member.email||"";}}catch(e){}
+    form.addEventListener("submit",async e=>{e.preventDefault();message.className="message";button.disabled=true;button.textContent="Checking in…";
+      const payload={eventId,first:first.value.trim(),last:last.value.trim(),email:email.value.trim().toLowerCase(),updates:updates.checked,source:"event_qr"};
+      try{const response=await fetch("/.netlify/functions/checkin",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.error||"Check-in failed");
+        localStorage.setItem("hl360_kitchen_member",JSON.stringify({first:payload.first,last:payload.last,email:payload.email,joined:new Date().toISOString()}));
+        form.hidden=true;document.getElementById("successTitle").textContent=data.duplicate?"You're already checked in.":"You're checked in.";document.getElementById("success").classList.add("show");
+      }catch(error){message.textContent=error.message||"We couldn't complete the check-in. Please try again.";message.className="message error";}finally{button.disabled=false;button.textContent="Check In";}
+    });
+  </script>
+</body>
+</html>
